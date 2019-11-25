@@ -5,6 +5,15 @@ import os
 import shutil
 from pathlib import Path
 
+from aeneas.exacttiming import TimeValue
+from aeneas.executetask import ExecuteTask as AeneasExecuteTask
+from aeneas.language import Language
+from aeneas.syncmap import SyncMapFormat
+from aeneas.task import Task as AeneasTask
+from aeneas.task import TaskConfiguration
+from aeneas.textfile import TextFileFormat
+import aeneas.globalconstants as gc
+
 from doit.task import dict_to_task
 from doit.cmd_base import TaskLoader
 from doit.doit_cmd import DoitMain
@@ -45,31 +54,12 @@ def out_dir(input_path):
     return Path(f'{input_path.stem}.out')
 
 
-def mfa_dir(input_path):
-    return out_dir(input_path) / 'mfa'
-
-
-def mfa_corpus_dir(input_path):
-    return mfa_dir(input_path) / 'corpus'
-
-
-def mfa_output_dir(input_path):
-    return mfa_dir(input_path) / 'output'
-
-
-def mfa_temp_dir(input_path):
-    return mfa_dir(input_path) / 'tmp'
-
-
-def mfa_corpus_deps(input_path):
-    return [
-        mfa_corpus_dir(input_path) / 'recording.wav',
-        mfa_corpus_dir(input_path) / 'recording.lab',
-    ]
-
-
 def lyrics_path(input_path):
     return out_dir(input_path) / 'lyrics.txt'
+
+
+def sync_map_path(input_path):
+    return out_dir(input_path) / 'sync_map.json'
 
 
 @make_task
@@ -104,10 +94,16 @@ def task_download_lyrics(input_path):
         out_dir(input_path).mkdir(parents=True, exist_ok=True)
         mp3 = taglib.File(str(input_path))
 
-        genius = lyricsgenius.Genius(os.environ['GENIUS_ACCESS_TOKEN'])
-        song = genius.search_song(mp3.tags['TITLE'], mp3.tags['ARTIST'])
-        with open(out_filename, 'w') as lyrics_file:
-            print(song.lyrics, file=lyrics_file)
+        tag_lyrics = mp3.tags.get('LYRICS', [''])[0].strip()
+
+        if tag_lyrics:
+            with open(out_filename, 'w') as lyrics_file:
+                print(*tag_lyrics.splitlines(), sep='\n', file=lyrics_file)
+        else:
+            genius = lyricsgenius.Genius(os.environ['GENIUS_ACCESS_TOKEN'])
+            song = genius.search_song(mp3.tags['TITLE'], mp3.tags['ARTIST'])
+            with open(out_filename, 'w') as lyrics_file:
+                print(song.lyrics, file=lyrics_file)
 
     return {
         'actions': [(download_lyrics,)],
@@ -164,13 +160,12 @@ def _read_lexicon(lexicon_file):
 @make_task
 def task_combine_lexicons():
     def combine_lexicons(dependencies, targets):
-        prosodylab_lexicon_path, librispeech_lexicon_path = dependencies
-        with open(prosodylab_lexicon_path, encoding='utf-8') as prosodylab_lexicon:
+        with open('prosodylab_lexicon.txt', encoding='utf-8') as prosodylab_lexicon:
             lexicon = {
                 word: orthography
                 for word, orthography in _read_lexicon(prosodylab_lexicon)
             }
-        with open(librispeech_lexicon_path, encoding='utf-8') as librispeech_lexicon:
+        with open('librispeech_lexicon.txt', encoding='utf-8') as librispeech_lexicon:
             for word, orthography in _read_lexicon(librispeech_lexicon):
                 lexicon.setdefault(word, orthography)
         with open(targets[0], 'w', encoding='utf-8') as combined_lexicon:
@@ -187,81 +182,32 @@ def task_combine_lexicons():
 
 
 @make_task
-def task_setup_mfa_corpus(input_path):
-
-    def assemble_corpus_files(dependencies, targets):
-        mfa_corpus_dir(input_path).mkdir(parents=True, exist_ok=True)
-        # dependency order isn't maintained in doit release
-        # vocals_path = out_dir(input_path) / 'vocals.wav'
-        # lyrics_path = out_dir(input_path) / 'lyrics.txt'
-        # target order is, but I don't trust anyone anymore
-        # recording_path, transcription_path = mfa_corpus_deps(input_path)
-        # trying with doit master to see if order is preserved
-        vocals_path, lyrics_path = dependencies
-        recording_path, transcription_path = targets
-        shutil.copyfile(lyrics_path, transcription_path)
-        shutil.copyfile(vocals_path, recording_path)
-
-    return {
-        'actions': [(assemble_corpus_files,)],
-        'file_dep': [out_dir(input_path) / 'vocals.wav', out_dir(input_path) / 'lyrics.txt'],
-        'targets': mfa_corpus_deps(input_path),
-        'uptodate': [True]
-    }
-
-
-@make_task
-def task_create_mfa_temp_dir(input_path):
-    return {
-        'actions': ['mkdir -p {targets}'],
-        'targets': [mfa_temp_dir(input_path)],
-        'uptodate': [True]
-    }
-
-
-@make_task
 def task_run_aligner(input_path):
-    cmd = ' '.join(
-        [
-            'montreal_forced_aligner/bin/mfa_align',
-            '--temp_directory', str(mfa_temp_dir(input_path)),
-            '--quiet',
-            '-b', '100',
-            str(mfa_corpus_dir(input_path)),
-            'combined_lexicon.txt',
-            'english',
-            str(mfa_output_dir(input_path)),
-        ]
-    )
-    print(cmd)
+    def run_aeneas(dependencies, targets):
+        audio_file_path = out_dir(input_path) / 'vocals.wav'
+        lyrics_file_path = lyrics_path(input_path)
+        # create Task object
+        config = TaskConfiguration()
+        config[gc.PPN_TASK_LANGUAGE] = Language.ENG
+        config[gc.PPN_TASK_IS_TEXT_FILE_FORMAT] = TextFileFormat.PLAIN
+        config[gc.PPN_TASK_OS_FILE_FORMAT] = SyncMapFormat.JSON
+        task = AeneasTask()
+        task.configuration = config
+        task.audio_file_path_absolute = str(audio_file_path)
+        task.text_file_path_absolute = str(lyrics_file_path)
+
+        # process Task
+        AeneasExecuteTask(task).execute()
+
+        # print produced sync map
+        task.sync_map.write(SyncMapFormat.JSON, targets[0], parameters=None)
+
     return {
-        'actions': [cmd],
-        'file_dep': mfa_corpus_deps(input_path) + [
-            mfa_temp_dir(input_path),
-            'combined_lexicon.txt',
-        ],
-        'verbosity': 2
+        'actions': [(run_aeneas,)],
+        'file_dep': [out_dir(input_path) / 'vocals.wav', lyrics_path(input_path)],
+        'targets': [sync_map_path(input_path)],
+        'verbosity': 2,
     }
-
-
-# def task_run_gentle(input_path):
-#     def on_progress(p):
-#         for k,v in p.items():
-#             logging.debug('%s: %s' % (k, v))
-
-#     with open(lyrics_path(input_path), encoding='utf-8') as lyrics_file:
-#         transcript = lyrics_file.read()
-
-#     resources = gentle.Resources()
-#     logging.info('converting audio to 8K sampled wav')
-
-#     with gentle.resampled(args.audiofile) as wavfile:
-#         logging.info('starting alignment')
-#         aligner = gentle.ForcedAligner(resources, transcript, nthreads=args.nthreads, disfluency=args.disfluency, conservative=args.conservative, disfluencies=disfluencies)
-#         result = aligner.transcribe(wavfile, progress_cb=on_progress, logging=logging)
-
-#     fh = open(args.output, 'w', encoding='utf-8') if args.output else sys.stdout
-#     fh.write(result.to_json(indent=2))
 
 
 def main():
@@ -285,8 +231,6 @@ def main():
             [
                 task_download_lyrics(args.input_path),
                 task_separate_audio(args.input_path),
-                task_setup_mfa_corpus(args.input_path),
-                task_create_mfa_temp_dir(args.input_path),
                 task_run_aligner(args.input_path)
             ]
         )
