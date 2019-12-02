@@ -50,16 +50,16 @@ def make_task(task_dict_func):
     return d_to_t
 
 
-def out_dir(input_path):
-    return Path(f'{input_path.stem}.out')
+def default_out_dir(input_path):
+    return input_path.parent / f'{input_path.stem}.out'
 
 
-def lyrics_path(input_path):
-    return out_dir(input_path) / 'lyrics.txt'
+def lyrics_path(output_path):
+    return output_path / 'lyrics.txt'
 
 
-def sync_map_path(input_path):
-    return out_dir(input_path) / 'sync_map.json'
+def sync_map_path(output_path):
+    return output_path / 'sync_map.json'
 
 
 @make_task
@@ -84,14 +84,14 @@ def task_deps_targets():
 
 
 @make_task
-def task_download_lyrics(input_path):
+def task_download_lyrics(input_path, output_path):
 
     def download_lyrics(targets):
         import lyricsgenius
         import taglib
 
         out_filename = targets[0]
-        out_dir(input_path).mkdir(parents=True, exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
         mp3 = taglib.File(str(input_path))
 
         tag_lyrics = mp3.tags.get('LYRICS', [''])[0].strip()
@@ -108,25 +108,25 @@ def task_download_lyrics(input_path):
     return {
         'actions': [(download_lyrics,)],
         'file_dep': [input_path],
-        'targets': [lyrics_path(input_path)],
+        'targets': [lyrics_path(output_path)],
         'verbosity': 2
     }
 
 
 @make_task
-def task_separate_audio(input_path):
+def task_separate_audio(input_path, output_dir_path):
     def separate_audio():
         from spleeter.separator import Separator
 
-        out_dir(input_path).mkdir(parents=True, exist_ok=True)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
         # Using embedded configuration.
         separator = Separator('spleeter:2stems')
-        separator.separate_to_file(str(input_path), out_dir(input_path))
+        separator.separate_to_file(str(input_path), output_dir_path)
 
     return {
         'actions': [(separate_audio,)],
         'file_dep': [input_path],
-        'targets': [out_dir(input_path) / 'accompaniment.wav', out_dir(input_path) / 'vocals.wav'],
+        'targets': [output_dir_path / 'accompaniment.wav', output_dir_path / 'vocals.wav'],
         'uptodate': [True],
         'verbosity': 2,
     }
@@ -182,10 +182,10 @@ def task_combine_lexicons():
 
 
 @make_task
-def task_run_aligner(input_path):
+def task_run_aligner(output_path):
     def run_aeneas(dependencies, targets):
-        audio_file_path = out_dir(input_path) / 'vocals.wav'
-        lyrics_file_path = lyrics_path(input_path)
+        audio_file_path = output_path / 'vocals.wav'
+        lyrics_file_path = lyrics_path(output_path)
         # create Task object
         config = TaskConfiguration()
         config[gc.PPN_TASK_LANGUAGE] = Language.ENG
@@ -204,8 +204,8 @@ def task_run_aligner(input_path):
 
     return {
         'actions': [(run_aeneas,)],
-        'file_dep': [out_dir(input_path) / 'vocals.wav', lyrics_path(input_path)],
-        'targets': [sync_map_path(input_path)],
+        'file_dep': [output_path / 'vocals.wav', lyrics_path(output_path)],
+        'targets': [sync_map_path(output_path)],
         'verbosity': 2,
     }
 
@@ -215,10 +215,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_path', type=Path)
-    parser.add_argument('tasks', nargs='*', type=str)
-    args = parser.parse_args()
-
-    specified_tasks = [f'task_{task_name}' for task_name in args.tasks]
+    parser.add_argument('-o', '--output_path', type=Path, default=None)
+    args, doit_args = parser.parse_known_args()
 
     # list tasks explicitly here to pass args as necessary
     all_tasks = [
@@ -227,17 +225,16 @@ def main():
         task_combine_lexicons(),
     ]
     if args.input_path:
+        output_dir_path = args.output_path or default_out_dir(args.input_path)
         all_tasks.extend(
             [
-                task_download_lyrics(args.input_path),
-                task_separate_audio(args.input_path),
-                task_run_aligner(args.input_path)
+                task_download_lyrics(args.input_path, output_dir_path),
+                task_separate_audio(args.input_path, output_dir_path),
+                task_run_aligner(output_path)
             ]
         )
 
-    tasks = (task for task in all_tasks if not specified_tasks or task.name in specified_tasks)
-
-    run_tasks(tasks, ['run'])
+    run_tasks(all_tasks, doit_args)
 
 
 if __name__ == '__main__':
