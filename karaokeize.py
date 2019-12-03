@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import json
 import logging
 import os
 import shutil
+import textwrap
 from pathlib import Path
 
 from aeneas.exacttiming import TimeValue
@@ -13,6 +15,10 @@ from aeneas.task import Task as AeneasTask
 from aeneas.task import TaskConfiguration
 from aeneas.textfile import TextFileFormat
 import aeneas.globalconstants as gc
+
+from moviepy.audio.io.AudioFileClip import AudioFileClip
+from moviepy.video.VideoClip import ColorClip, TextClip
+from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 
 from doit.task import dict_to_task
 from doit.cmd_base import TaskLoader
@@ -62,6 +68,10 @@ def sync_map_path(output_path):
     return output_path / 'sync_map.json'
 
 
+def video_path(input_path, output_path):
+    return output_path / f'{input_path.stem}_karaoke.mp4'
+
+
 @make_task
 def task_gunzip_data():
     return {'name': 'gunzip',
@@ -101,6 +111,8 @@ def task_download_lyrics(input_path, output_path):
                 print(*tag_lyrics.splitlines(), sep='\n', file=lyrics_file)
         else:
             genius = lyricsgenius.Genius(os.environ['GENIUS_ACCESS_TOKEN'])
+            # Remove section headers (e.g. [Chorus]) from lyrics when searching
+            genius.remove_section_headers = True
             song = genius.search_song(mp3.tags['TITLE'], mp3.tags['ARTIST'])
             with open(out_filename, 'w') as lyrics_file:
                 print(song.lyrics, file=lyrics_file)
@@ -183,6 +195,7 @@ def task_combine_lexicons():
 
 @make_task
 def task_run_aligner(output_path):
+
     def run_aeneas(dependencies, targets):
         audio_file_path = output_path / 'vocals.wav'
         lyrics_file_path = lyrics_path(output_path)
@@ -210,6 +223,57 @@ def task_run_aligner(output_path):
     }
 
 
+def generate_lyric_clips(lyrics_map):
+    for fragment in lyrics_map['fragments']:
+        lyric = '\n'.join(textwrap.wrap('\n'.join(fragment['lines']), 30))
+        if not lyric:
+            continue
+        fragment_begin, fragment_end = float(fragment['begin']), float(fragment['end'])
+        lyric_clip = (
+            TextClip(txt=lyric, size=(800, 600), color='white', font='Courier-Bold').
+            set_start(fragment_begin).
+            set_duration(fragment_end - fragment_begin).
+            set_pos(('center', 'center'))
+        )
+        yield lyric_clip
+
+
+@make_task
+def task_create_video(input_path, output_dir_path):
+
+    def create_video(dependencies, targets):
+        backing_track_path = output_dir_path / 'accompaniment.wav'
+        with open(sync_map_path(output_dir_path), encoding='utf-8') as sync_json_file:
+            lyric_clips = list(generate_lyric_clips(json.load(sync_json_file)))
+        backing_track_clip = AudioFileClip(str(backing_track_path))
+        background_clip = ColorClip(
+            size=(1024, 768), color=[0, 0, 0],
+            duration=backing_track_clip.duration
+        )
+        karaoke = (
+            CompositeVideoClip([background_clip] + lyric_clips).
+            set_duration(backing_track_clip.duration).
+            set_audio(backing_track_clip)
+        )
+        karaoke.write_videofile(
+            str(targets[0]),
+            fps=10,
+            # Workaround for missing audio
+            # https://github.com/Zulko/moviepy/issues/820
+            codec='libx264',
+            audio_codec='aac',
+            temp_audiofile='temp-audio.m4a',
+            remove_temp=True
+        )
+
+    return {
+        'actions': [(create_video,)],
+        'file_dep': [output_dir_path / 'accompaniment.wav', sync_map_path(output_dir_path)],
+        'targets': [video_path(input_path, output_dir_path)],
+        'verbosity': 2,
+    }
+
+
 def main():
     import argparse
 
@@ -230,7 +294,8 @@ def main():
             [
                 task_download_lyrics(args.input_path, output_dir_path),
                 task_separate_audio(args.input_path, output_dir_path),
-                task_run_aligner(output_path)
+                task_run_aligner(output_dir_path),
+                task_create_video(args.input_path, output_dir_path),
             ]
         )
 
