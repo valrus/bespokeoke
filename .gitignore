@@ -7,3 +7,7 @@ tmp/
 *.egg
 build
 htmlcov
+
+.doit.db
+.python-version
+pretrained_models/
