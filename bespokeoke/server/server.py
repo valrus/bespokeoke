@@ -2,7 +2,6 @@ from argparse import ArgumentParser
 from pathlib import Path
 import taglib
 
-# from bottle import Bottle, ConfigDict, template, static_file
 from quart import Quart, send_from_directory, request
 from werkzeug.utils import secure_filename
 
@@ -47,14 +46,8 @@ def has_output_file(song_file_path, output_file_name):
     return (output_dir / output_file_name).is_file()
 
 
-# @app.route('/static/<filepath:path>')
-# def server_static(filepath):
-#     return static_file(filepath, root=str(SERVER_LOCATION / 'karaokedoke' / 'static'))
-
-
 @app.route('/')
 def elm_app():
-    # return static_file('index.html', root=str(SERVER_LOCATION / 'karaokedoke'))
     return send_from_directory('karaokedoke', 'index.html')
 
 
@@ -117,10 +110,6 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('song_dir', type=Path)
     args = parser.parse_args()
-
-    # app_config = ConfigDict()
-    # app_config.update(song_dir=args.song_dir)
-    # app.config = app_config
 
     app.config['UPLOAD_FOLDER'] = args.song_dir
     app.run(
