@@ -1,0 +1,3 @@
+[submodule "bespokeoke/server/karaokedoke"]
+	path = bespokeoke/server/karaokedoke
+	url = git@github.com:valrus/karaokedoke.git
