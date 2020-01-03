@@ -5,13 +5,16 @@ import taglib
 from quart import Quart, send_from_directory, request
 from werkzeug.utils import secure_filename
 
+from bespokeoke.karaokeize.karaokeizer import build_and_run_tasks
+
+
 SERVER_LOCATION = Path(__file__).resolve().parent
-UPLOAD_FOLDER = '/path/to/the/uploads'
 ALLOWED_EXTENSIONS = {'mp3'}
 
 app = Quart(
     __name__,
-    static_folder=str(SERVER_LOCATION / 'karaokedoke' / 'static')
+    static_folder=str(SERVER_LOCATION / 'karaokedoke' / 'static'),
+    root_path=str(SERVER_LOCATION)
 )
 
 # app = Bottle()
@@ -48,7 +51,7 @@ def has_output_file(song_file_path, output_file_name):
 
 @app.route('/')
 def elm_app():
-    return send_from_directory('karaokedoke', 'index.html')
+    return send_from_directory(str(SERVER_LOCATION / 'karaokedoke'), 'index.html')
 
 
 def song_data_for_file(song_file_path):
@@ -106,14 +109,19 @@ async def upload_songs():
     return songs_json_from_files(saved_songs)
 
 
-if __name__ == '__main__':
+def main():
     parser = ArgumentParser()
-    parser.add_argument('song_dir', type=Path)
+    parser.add_argument('-s', '--song_dir', type=Path, default=Path(SERVER_LOCATION / 'songs'))
     args = parser.parse_args()
 
     app.config['UPLOAD_FOLDER'] = args.song_dir
+    app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
     app.run(
         host='localhost',
         port=8080,
         debug=True
     )
+
+
+if __name__ == '__main__':
+    main()

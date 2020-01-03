@@ -6,7 +6,7 @@ from pathlib import Path
 from doit.cmd_base import TaskLoader
 from doit.doit_cmd import DoitMain
 
-from tasks import *
+from .tasks import *
 
 
 def run_tasks(tasks, args, config=None):
@@ -30,14 +30,7 @@ def _default_out_dir(input_path):
     return input_path.parent / f'{input_path.stem}.out'
 
 
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input_path', type=Path)
-    parser.add_argument('-o', '--output_path', type=Path, default=None)
-    args, doit_args = parser.parse_known_args()
-
+def build_and_run_tasks(args, doit_args):
     # list tasks explicitly here to pass args as necessary
     all_tasks = []
     if args.input_path:
@@ -53,6 +46,17 @@ def main():
         )
 
     run_tasks(all_tasks, doit_args)
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input_path', type=Path)
+    parser.add_argument('-o', '--output_path', type=Path, default=None)
+    args, doit_args = parser.parse_known_args()
+
+    build_and_run_tasks(args, doit_args)
 
 
 if __name__ == '__main__':
