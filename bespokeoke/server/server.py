@@ -1,11 +1,18 @@
-from argparse import ArgumentParser
+import asyncio
+import hashlib
+import multiprocessing
+from argparse import ArgumentParser, Namespace
+from doit.reporter import ZeroReporter
+from functools import partial
 from pathlib import Path
+
 import taglib
 
-from quart import Quart, send_from_directory, request
+from quart import Quart, send_from_directory, request, jsonify, make_response
 from werkzeug.utils import secure_filename
 
 from bespokeoke.karaokeize.karaokeizer import build_and_run_tasks
+from .sse import ServerSentEvent
 
 
 SERVER_LOCATION = Path(__file__).resolve().parent
@@ -16,8 +23,49 @@ app = Quart(
     static_folder=str(SERVER_LOCATION / 'karaokedoke' / 'static'),
     root_path=str(SERVER_LOCATION)
 )
+app.clients = set()
+app.process_queue = asyncio.Queue()
 
-# app = Bottle()
+
+# # for if the reporter needs to be a class
+# def process_reporter_init(self, target, *args):
+#     super().__init__(*args)
+#     self.target = target
+#
+# def alpha_hash(s):
+#     '''Convert a string into a hash suitable for appending to a Python class name.'''
+#     table = str.maketrans('1234567890', 'ghijklmnop')
+#     return hashlib.blake2b(s.encode('utf-8'), digest_size=10).hexdigest().translate(table)
+#
+# song_id_hash = alpha_hash(song_id)
+# song_reporter = type(
+#     f'ProcessQueueReporter_{song_id_hash}',
+#     (ProcessQueueReporter,),
+#     {'target': song_id}
+# )
+
+
+class ProcessQueueReporter(ZeroReporter):
+    def __init__(self, queue, target, options):
+        super().__init__(queue, options)
+        self.target = target
+
+    def write(self, data):
+        for queue in app.clients:
+            queue.put_nowait(data)
+
+    # get_status = execute_task = add_failure = add_success \
+    #     = skip_uptodate = skip_ignore = teardown_task = complete_run \
+    #     = _just_pass
+
+    def execute_task(self, task):
+        self.write({'event': 'start', 'task': task.title(), 'songId': self.target})
+
+    def add_success(self, task):
+        self.write({'event': 'step', 'task': task.title(), 'songId': self.target})
+
+    def complete_run(self):
+        self.write({'event': 'success', 'songId': self.target })
 
 
 def song_file_tag(mp3, tag):
@@ -54,6 +102,10 @@ def elm_app():
     return send_from_directory(str(SERVER_LOCATION / 'karaokedoke'), 'index.html')
 
 
+def song_file(song_id):
+    return app.config['UPLOAD_FOLDER'] / f'{song_id}.mp3'
+
+
 def song_data_for_file(song_file_path):
     try:
         taglib_file = taglib.File(str(song_file_path))
@@ -88,6 +140,20 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def process_song(song_path):
+    song_id = song_path.stem
+    run_tasks_to_event_stream = partial(
+        build_and_run_tasks,
+        doit_config={'reporter': ProcessQueueReporter(app.process_queue, song_id, {})}
+    )
+    asyncio.get_running_loop().run_in_executor(
+        None,
+        run_tasks_to_event_stream,
+        Namespace(input_path=song_path, output_path=None),
+        ['task_run_aligner'],
+    )
+
+
 @app.route('/songs', methods=['POST'])
 async def upload_songs():
     files = await(request.files)
@@ -106,7 +172,39 @@ async def upload_songs():
             song_path = app.config['UPLOAD_FOLDER'] / filename
             song.save(str(song_path))
             saved_songs.append(song_path)
+            process_song(song_path)
     return songs_json_from_files(saved_songs)
+
+
+@app.route('/song/<song_id>/process')
+async def process_upload(song_id):
+    process_song(song_id)
+    return jsonify(True)
+
+
+@app.route('/progress')
+async def progress_events():
+    queue = asyncio.Queue()
+    app.clients.add(queue)
+    async def send_events():
+        while True:
+            try:
+                data = await queue.get()
+                event = ServerSentEvent(data)
+                yield event.encode()
+            except asyncio.CancelledError as error:
+                app.clients.remove(queue)
+
+    response = await make_response(
+        send_events(),
+        {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Transfer-Encoding': 'chunked',
+        },
+    )
+    response.timeout = None
+    return response
 
 
 def main():

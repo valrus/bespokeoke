@@ -9,19 +9,19 @@ from doit.doit_cmd import DoitMain
 from .tasks import *
 
 
-def run_tasks(tasks, args, config=None):
+def run_tasks(tasks, args, doit_config=None):
     '''Given a list of `Task` objects, a list of arguments,
     and a config dictionary, execute the tasks.
     '''
 
-    config = {} if config is None else config
-    config.setdefault('verbosity', 0)
-    config.setdefault('action_string_formatting', 'new')
+    doit_config = {} if doit_config is None else doit_config
+    doit_config.setdefault('verbosity', 0)
+    doit_config.setdefault('action_string_formatting', 'new')
 
     class Loader(TaskLoader):
         @staticmethod
         def load_tasks(cmd, opt_values, pos_args):
-            return tasks, config
+            return tasks, doit_config
 
     return DoitMain(Loader()).run(args)
 
@@ -30,7 +30,7 @@ def _default_out_dir(input_path):
     return input_path.parent / f'{input_path.stem}.out'
 
 
-def build_and_run_tasks(args, doit_args):
+def build_and_run_tasks(args, doit_args, doit_config=None):
     # list tasks explicitly here to pass args as necessary
     all_tasks = []
     if args.input_path:
@@ -45,7 +45,7 @@ def build_and_run_tasks(args, doit_args):
             ]
         )
 
-    run_tasks(all_tasks, doit_args)
+    run_tasks(all_tasks, doit_args, doit_config=doit_config)
 
 
 def main():
