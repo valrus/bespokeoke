@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import logging
+import os
+import sys
 from pathlib import Path
 
 from doit.cmd_base import TaskLoader
@@ -45,7 +47,7 @@ def build_and_run_tasks(args, doit_args, doit_config=None):
             ]
         )
 
-    run_tasks(all_tasks, doit_args, doit_config=doit_config)
+    return run_tasks(all_tasks, doit_args, doit_config=doit_config)
 
 
 def main():
@@ -56,7 +58,7 @@ def main():
     parser.add_argument('-o', '--output_path', type=Path, default=None)
     args, doit_args = parser.parse_known_args()
 
-    build_and_run_tasks(args, doit_args)
+    return build_and_run_tasks(args, doit_args)
 
 
 if __name__ == '__main__':

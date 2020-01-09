@@ -1,30 +1,32 @@
 import asyncio
 import hashlib
 import multiprocessing
+import os
 from argparse import ArgumentParser, Namespace
-from doit.reporter import ZeroReporter
 from functools import partial
 from pathlib import Path
 
 import taglib
 
-from quart import Quart, send_from_directory, request, jsonify, make_response
+from flask import Flask, send_from_directory, request, jsonify, make_response
 from werkzeug.utils import secure_filename
 
 from bespokeoke.karaokeize.karaokeizer import build_and_run_tasks
+from .process_queue_reporter import ProcessQueueReporter
 from .sse import ServerSentEvent
 
 
 SERVER_LOCATION = Path(__file__).resolve().parent
 ALLOWED_EXTENSIONS = {'mp3'}
 
-app = Quart(
+app = Flask(
     __name__,
     static_folder=str(SERVER_LOCATION / 'karaokedoke' / 'static'),
     root_path=str(SERVER_LOCATION)
 )
 app.clients = set()
-app.process_queue = asyncio.Queue()
+app.process_pool = multiprocessing.Pool()
+app.process_queue = multiprocessing.Manager().Queue()
 
 
 # # for if the reporter needs to be a class
@@ -43,29 +45,6 @@ app.process_queue = asyncio.Queue()
 #     (ProcessQueueReporter,),
 #     {'target': song_id}
 # )
-
-
-class ProcessQueueReporter(ZeroReporter):
-    def __init__(self, queue, target, options):
-        super().__init__(queue, options)
-        self.target = target
-
-    def write(self, data):
-        for queue in app.clients:
-            queue.put_nowait(data)
-
-    # get_status = execute_task = add_failure = add_success \
-    #     = skip_uptodate = skip_ignore = teardown_task = complete_run \
-    #     = _just_pass
-
-    def execute_task(self, task):
-        self.write({'event': 'start', 'task': task.title(), 'songId': self.target})
-
-    def add_success(self, task):
-        self.write({'event': 'step', 'task': task.title(), 'songId': self.target})
-
-    def complete_run(self):
-        self.write({'event': 'success', 'songId': self.target })
 
 
 def song_file_tag(mp3, tag):
@@ -140,23 +119,56 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def process_song(song_path):
-    song_id = song_path.stem
-    run_tasks_to_event_stream = partial(
-        build_and_run_tasks,
-        doit_config={'reporter': ProcessQueueReporter(app.process_queue, song_id, {})}
+def run_tasks_to_event_stream(song_id, *args):
+    build_and_run_tasks(
+        *args,
+        doit_config={
+            'reporter': ProcessQueueReporter(app.process_queue, song_id, {}),
+            'verbosity': 2,
+        }
     )
-    asyncio.get_running_loop().run_in_executor(
+
+
+def process_song_executor(song_path):
+    song_id = song_path.stem
+    return asyncio.get_running_loop().run_in_executor(
         None,
         run_tasks_to_event_stream,
+        song_id,
+        Namespace(input_path=song_path, output_path=None),
+        ['task_run_aligner']
+    )
+
+
+async def process_song(song_path):
+    song_id = song_path.stem
+    run_tasks_to_event_stream(
+        song_id,
         Namespace(input_path=song_path, output_path=None),
         ['task_run_aligner'],
     )
 
 
+def multiprocess_song(song_path):
+    song_id = song_path.stem
+    return app.process_pool.apply_async(
+        build_and_run_tasks,
+        (
+            Namespace(input_path=song_path, output_path=None),
+            ['task_run_aligner']
+        ),
+        {
+            'doit_config': {
+                'reporter': ProcessQueueReporter(app.process_queue, song_id, {}),
+                'verbosity': 2,
+            }
+        }
+    )
+
+
 @app.route('/songs', methods=['POST'])
-async def upload_songs():
-    files = await(request.files)
+def upload_songs():
+    files = request.files
     # check if the post request has the file part
     if 'song[]' not in files:
         return {}
@@ -164,6 +176,7 @@ async def upload_songs():
     # if user does not select file, browser also
     # submit an empty part without filename
     saved_songs = []
+    process_things = []
     for song in song_uploads:
         if song.filename == '':
             continue
@@ -172,30 +185,31 @@ async def upload_songs():
             song_path = app.config['UPLOAD_FOLDER'] / filename
             song.save(str(song_path))
             saved_songs.append(song_path)
-            process_song(song_path)
+            import ipdb; ipdb.set_trace()
+            # await process_song(song_path)
+            # task = asyncio.create_task(process_song(song_path))
+            # task.add_done_callback(partial(print, "Task:"))
+            # process_things.append(task)
+            # process_song_executor(song_path)
+            process_things.append(multiprocess_song(song_path))
     return songs_json_from_files(saved_songs)
 
 
 @app.route('/song/<song_id>/process')
-async def process_upload(song_id):
+def process_upload(song_id):
     process_song(song_id)
     return jsonify(True)
 
 
 @app.route('/progress')
-async def progress_events():
-    queue = asyncio.Queue()
-    app.clients.add(queue)
-    async def send_events():
+def progress_events():
+    def send_events():
         while True:
-            try:
-                data = await queue.get()
-                event = ServerSentEvent(data)
-                yield event.encode()
-            except asyncio.CancelledError as error:
-                app.clients.remove(queue)
+            data = app.process_queue.get()
+            event = ServerSentEvent(data)
+            yield event.encode()
 
-    response = await make_response(
+    response = make_response(
         send_events(),
         {
             'Content-Type': 'text/event-stream',
@@ -208,6 +222,9 @@ async def progress_events():
 
 
 def main():
+    # macos multiprocessing issue
+    # https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr
+    os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
     parser = ArgumentParser()
     parser.add_argument('-s', '--song_dir', type=Path, default=Path(SERVER_LOCATION / 'songs'))
     args = parser.parse_args()
