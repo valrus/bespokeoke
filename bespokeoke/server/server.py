@@ -150,7 +150,7 @@ def handle_process_error(song_id, exception):
 
 def multiprocess_song(song_path):
     song_id = song_path.stem
-    app.process_queue.put_nowait({'event': 'start', 'task': 'processing', 'songId': song_id})
+    # app.process_queue.put_nowait({'event': 'start', 'task': 'processing', 'songId': song_id})
     return app.process_pool.apply_async(
         build_and_run_tasks,
         (
@@ -208,7 +208,8 @@ def progress_events():
         headers={
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Transfer-Encoding': 'chunked',
+            # chunking seems to cause firefox disconnects
+            # 'Transfer-Encoding': 'chunked',
         },
     )
     response.timeout = None
