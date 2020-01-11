@@ -3,6 +3,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import time
 from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
@@ -120,8 +121,36 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def handle_process_result(song_id, result):
+    '''Queue a message regarding the result of a process.
+
+    Possible result codes, per the doit docs:
+    0 => all tasks executed successfully
+    1 => task failed
+    2 => error executing task
+    3 => error before task execution starts (in this case the reporter is not used)
+
+    TODO: more granularity?
+    '''
+    if result == 0:
+        event = {'event': 'success', 'task': 'processing', 'songId': song_id}
+    elif result == 1:
+        event = {'event': 'error', 'task': 'processing', 'songId': song_id}
+    elif result == 2:
+        event = {'event': 'error', 'task': 'processing', 'songId': song_id}
+    elif result == 3:
+        event = {'event': 'error', 'task': 'processing', 'songId': song_id}
+
+    app.process_queue.put_nowait(event)
+
+
+def handle_process_error(song_id, exception):
+    app.process_queue.put_nowait({'event': 'error', 'task': 'processing', 'songId': song_id})
+
+
 def multiprocess_song(song_path):
     song_id = song_path.stem
+    app.process_queue.put_nowait({'event': 'start', 'task': 'processing', 'songId': song_id})
     return app.process_pool.apply_async(
         build_and_run_tasks,
         (
@@ -133,7 +162,9 @@ def multiprocess_song(song_path):
                 'reporter': ProcessQueueReporter(app.process_queue, song_id, {}),
                 'verbosity': 2,
             }
-        }
+        },
+        callback=partial(handle_process_result, song_id),
+        error_callback=partial(handle_process_error, song_id)
     )
 
 
@@ -160,19 +191,17 @@ def upload_songs():
     return songs_json_from_files(saved_songs)
 
 
-@app.route('/song/<song_id>/process')
-def process_upload(song_id):
-    process_song(song_id)
-    return jsonify(True)
-
-
 @app.route('/progress')
 def progress_events():
     def send_events():
         while True:
             data = app.process_queue.get()
             event = ServerSentEvent(json.dumps(data))
+            if app.debug:
+                print(event.encode())
             yield event.encode()
+            # don't send messages too fast
+            time.sleep(0.1)
 
     response = Response(
         send_events(),
