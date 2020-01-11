@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import multiprocessing
 import os
 from argparse import ArgumentParser, Namespace
@@ -8,7 +9,7 @@ from pathlib import Path
 
 import taglib
 
-from flask import Flask, send_from_directory, request, jsonify, make_response
+from flask import Flask, Response, send_from_directory, request, jsonify
 from werkzeug.utils import secure_filename
 
 from bespokeoke.karaokeize.karaokeizer import build_and_run_tasks
@@ -119,36 +120,6 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def run_tasks_to_event_stream(song_id, *args):
-    build_and_run_tasks(
-        *args,
-        doit_config={
-            'reporter': ProcessQueueReporter(app.process_queue, song_id, {}),
-            'verbosity': 2,
-        }
-    )
-
-
-def process_song_executor(song_path):
-    song_id = song_path.stem
-    return asyncio.get_running_loop().run_in_executor(
-        None,
-        run_tasks_to_event_stream,
-        song_id,
-        Namespace(input_path=song_path, output_path=None),
-        ['task_run_aligner']
-    )
-
-
-async def process_song(song_path):
-    song_id = song_path.stem
-    run_tasks_to_event_stream(
-        song_id,
-        Namespace(input_path=song_path, output_path=None),
-        ['task_run_aligner'],
-    )
-
-
 def multiprocess_song(song_path):
     song_id = song_path.stem
     return app.process_pool.apply_async(
@@ -185,12 +156,6 @@ def upload_songs():
             song_path = app.config['UPLOAD_FOLDER'] / filename
             song.save(str(song_path))
             saved_songs.append(song_path)
-            import ipdb; ipdb.set_trace()
-            # await process_song(song_path)
-            # task = asyncio.create_task(process_song(song_path))
-            # task.add_done_callback(partial(print, "Task:"))
-            # process_things.append(task)
-            # process_song_executor(song_path)
             process_things.append(multiprocess_song(song_path))
     return songs_json_from_files(saved_songs)
 
@@ -206,12 +171,12 @@ def progress_events():
     def send_events():
         while True:
             data = app.process_queue.get()
-            event = ServerSentEvent(data)
+            event = ServerSentEvent(json.dumps(data))
             yield event.encode()
 
-    response = make_response(
+    response = Response(
         send_events(),
-        {
+        headers={
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
             'Transfer-Encoding': 'chunked',
