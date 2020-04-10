@@ -7,6 +7,7 @@ from aeneas.syncmap import SyncMapFormat
 from aeneas.task import Task as AeneasTask
 from aeneas.task import TaskConfiguration
 from aeneas.textfile import TextFileFormat
+from aeneas.syncmap.headtailformat import SyncMapHeadTailFormat
 import aeneas.globalconstants as gc
 
 from .utils import make_task, lyrics_path, sync_map_path, silences_path
@@ -23,8 +24,11 @@ def task_run_aligner(output_path):
         # create (aeneas) Task object
         config = TaskConfiguration()
         config[gc.PPN_TASK_LANGUAGE] = Language.ENG
-        config[gc.PPN_TASK_IS_TEXT_FILE_FORMAT] = TextFileFormat.PLAIN
+        config[gc.PPN_TASK_IS_TEXT_FILE_FORMAT] = TextFileFormat.MPLAIN
         config[gc.PPN_TASK_OS_FILE_FORMAT] = SyncMapFormat.JSON
+        # config[gc.PPN_TASK_IS_AUDIO_FILE_HEAD_LENGTH] = first_silence_end
+        # config[gc.PPN_TASK_IS_AUDIO_FILE_TAIL_LENGTH] = last_silence_beginning
+        # config[gc.PPN_TASK_OS_FILE_HEAD_TAIL_FORMAT] = SyncMapHeadTailFormat.HIDDEN
         task = AeneasTask()
         task.configuration = config
         task.audio_file_path_absolute = str(audio_file_path)
@@ -38,7 +42,11 @@ def task_run_aligner(output_path):
 
     return {
         'actions': [(run_aeneas,)],
-        'file_dep': [output_path / 'vocals.wav', lyrics_path(output_path)],
+        'file_dep': [
+            output_path / 'vocals.wav',
+            lyrics_path(output_path),
+            silences_path(output_path)
+        ],
         'targets': [sync_map_path(output_path)],
         'verbosity': 2,
     }
