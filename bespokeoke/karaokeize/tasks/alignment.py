@@ -28,7 +28,6 @@ def task_run_aligner(output_path):
         config[gc.PPN_TASK_OS_FILE_FORMAT] = SyncMapFormat.JSON
         # config[gc.PPN_TASK_IS_AUDIO_FILE_HEAD_LENGTH] = first_silence_end
         # config[gc.PPN_TASK_IS_AUDIO_FILE_TAIL_LENGTH] = last_silence_beginning
-        # config[gc.PPN_TASK_OS_FILE_HEAD_TAIL_FORMAT] = SyncMapHeadTailFormat.HIDDEN
         task = AeneasTask()
         task.configuration = config
         task.audio_file_path_absolute = str(audio_file_path)
@@ -38,7 +37,12 @@ def task_run_aligner(output_path):
         AeneasExecuteTask(task).execute()
 
         # print produced sync map
-        task.sync_map.write(SyncMapFormat.JSON, targets[0], parameters=None)
+        sync_map_params = {
+            # a.k.a. keep all levels
+            gc.PPN_TASK_OS_FILE_LEVELS: None,
+            gc.PPN_TASK_OS_FILE_HEAD_TAIL_FORMAT: SyncMapHeadTailFormat.HIDDEN
+        }
+        task.sync_map.write(SyncMapFormat.JSON, targets[0], parameters=sync_map_params)
 
     return {
         'actions': [(run_aeneas,)],
