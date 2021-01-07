@@ -45,7 +45,7 @@ Jinja2==2.10.3
 Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
 lazy-object-proxy==1.4.3
-lxml==4.4.1
+lxml==4.6.2
 lyricsgenius==1.8.0
 MacFSEvents==0.8.1
 Markdown==3.1.1
