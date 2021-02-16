@@ -46,11 +46,8 @@ def song_artist(taglib_file=None):
     return song_file_tag(taglib_file, 'ARTIST') or 'Unknown Artist'
 
 
-def has_output_file(song_file_path, output_file_name):
-    output_dir = song_file_path.parent / f'{song_file_path.stem}.out'
-    if not output_dir.is_dir():
-        return False
-    return (output_dir / output_file_name).is_file()
+def song_output_file(song_file_path, output_file_name):
+    return song_file_path.parent / f'{song_file_path.stem}.out' / output_file_name
 
 
 def song_data_for_file(song_file_path):
@@ -62,8 +59,8 @@ def song_data_for_file(song_file_path):
         'name': song_name(song_file_path, taglib_file),
         'artist': song_artist(taglib_file),
         'prepared': all([
-            has_output_file(song_file_path, output_file)
-            for output_file in SONG_OUTPUT_FILES
+            song_output_file(song_file_path, output_file_name).is_file()
+            for output_file_name in SONG_OUTPUT_FILES
         ])
     }
 
@@ -102,6 +99,9 @@ def create_application(serve_static_files=False):
         song_file(song_id).unlink()
         return True
 
+    def song_data_for_id(song_id):
+        return song_data_for_file(application.config['UPLOAD_FOLDER'] / f'{song_id}.mp3')
+
     @application.route('/api/songs')
     def list_songs():
         return songs_json_from_files(application.config['UPLOAD_FOLDER'].iterdir())
@@ -116,19 +116,7 @@ def create_application(serve_static_files=False):
 
     @application.route('/api/song_data/<song_id>')
     def get_song_data(song_id):
-        return song_data_for_file(application.config['UPLOAD_FOLDER'] / f'{song_id}.mp3')
-
-    @application.route('/api/vocals/<song_id>')
-    def get_vocal_track(song_id):
-        return send_from_directory(output_dir(song_id), 'vocals.wav')
-
-    @application.route('/api/accompaniment/<song_id>')
-    def get_accompaniment_track(song_id):
-        return send_from_directory(output_dir(song_id), 'accompniment.wav')
-
-    @application.route('/api/lyrics/<song_id>')
-    def get_lyrics(song_id):
-        return send_from_directory(output_dir(song_id), 'sync_map.json')
+        return song_data_for_id(song_id)
 
     def handle_process_result(song_id, result):
         '''Queue a message regarding the result of a process.
@@ -224,6 +212,22 @@ def create_application(serve_static_files=False):
         @application.route('/images/<file_name>')
         def static_image(file_name):
             return send_from_directory(str(Path(application.static_folder) / 'images'), file_name)
+
+        @application.route('/fonts/<font_dir>/<file_name>')
+        def static_font(font_dir, file_name):
+            return send_from_directory(str(Path(application.static_folder) / 'css' / 'fonts' / font_dir), file_name)
+
+        @application.route('/accompaniment/<song_id>')
+        def accompaniment_track(song_id):
+            return send_from_directory(output_dir(song_id), 'accompaniment.wav')
+
+        @application.route('/vocals/<song_id>')
+        def vocal_track(song_id):
+            return send_from_directory(output_dir(song_id), 'vocals.wav')
+
+        @application.route('/lyrics/<song_id>')
+        def lyrics(song_id):
+            return send_from_directory(output_dir(song_id), 'sync_map.json')
 
     @application.route('/', defaults={'path': ''})
     @application.route('/<path:path>')
