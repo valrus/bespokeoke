@@ -12,3 +12,10 @@ out the other end.
 2. *Karaokedoke* is an Elm webapp allowing you to manage your karaokeized songs
 and tweak them where the automated tools that make up the karaokeizer
 fell down on the job.
+
+## Running the server
+
+From this directory, either:
+`python -m bespokeoke.server.server`
+`pip install -e .` and then `karaokedoke`.
+If you do the latter you need to `pip install -e .` for every change.
