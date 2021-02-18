@@ -14,7 +14,7 @@ def task_find_silences(output_dir_path):
 
         vocals_file_path = dependencies[0]
         audio = AudioSegment.from_file(vocals_file_path, format='wav')
-        silences = detect_silence(audio, min_silence_len=500, silence_thresh=-50)
+        silences = detect_silence(audio, min_silence_len=500, silence_thresh=-35)
         silences_file_path = targets[0]
         with open(silences_file_path, 'w', encoding='utf-8') as silences_file:
             json.dump(

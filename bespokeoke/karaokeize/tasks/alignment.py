@@ -3,14 +3,16 @@
 import io
 import json
 
-from aeneas.exacttiming import TimeValue
+from aeneas.adjustboundaryalgorithm import AdjustBoundaryAlgorithm
+from aeneas.dtw import DTWAlgorithm
 from aeneas.executetask import ExecuteTask as AeneasExecuteTask
 from aeneas.language import Language
+from aeneas.runtimeconfiguration import RuntimeConfiguration
 from aeneas.syncmap import SyncMapFormat
+from aeneas.syncmap.headtailformat import SyncMapHeadTailFormat
 from aeneas.task import Task as AeneasTask
 from aeneas.task import TaskConfiguration
 from aeneas.textfile import TextFileFormat
-from aeneas.syncmap.headtailformat import SyncMapHeadTailFormat
 import aeneas.globalconstants as gc
 
 from .utils import make_task, lyrics_path, sync_map_path, silences_path
@@ -44,7 +46,13 @@ def task_run_aligner(output_path):
         config[gc.PPN_TASK_IS_AUDIO_FILE_PROCESS_LENGTH] = nonsilent_range[-1] / 1000.0
 
         # remove long nonspeech intervals from the output sync map
+        config[gc.PPN_TASK_ADJUST_BOUNDARY_NONSPEECH_MIN] = 0.5
         config[gc.PPN_TASK_ADJUST_BOUNDARY_NONSPEECH_STRING] = gc.PPV_TASK_ADJUST_BOUNDARY_NONSPEECH_REMOVE
+
+        # The new boundary between two consecutive fragments will be set at value seconds from the current value.
+        # A negative value will move the boundary back, a positive value will move the boundary forward.
+        config[gc.PPN_TASK_ADJUST_BOUNDARY_ALGORITHM] = AdjustBoundaryAlgorithm.OFFSET
+        config[gc.PPN_TASK_ADJUST_BOUNDARY_OFFSET_VALUE] = -0.5
 
         config[gc.PPN_TASK_OS_FILE_FORMAT] = SyncMapFormat.JSON
         task = AeneasTask()
@@ -52,8 +60,12 @@ def task_run_aligner(output_path):
         task.audio_file_path_absolute = str(audio_file_path)
         task.text_file_path_absolute = str(lyrics_file_path)
 
+        runtime_config = RuntimeConfiguration()
+        runtime_config[RuntimeConfiguration.DTW_ALGORITHM] = DTWAlgorithm.STRIPE
+        runtime_config[RuntimeConfiguration.MFCC_MASK_NONSPEECH] = True
+
         # process Task
-        AeneasExecuteTask(task).execute()
+        AeneasExecuteTask(task, rconf=runtime_config).execute()
 
         # print produced sync map
         sync_map_params = {
