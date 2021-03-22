@@ -9,7 +9,7 @@ from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
 
-import taglib
+import mutagen
 
 from flask import Flask, Response, send_from_directory, request, jsonify
 from werkzeug.utils import secure_filename
@@ -24,26 +24,26 @@ ALLOWED_EXTENSIONS = {'mp3'}
 SONG_OUTPUT_FILES = ['accompaniment.wav', 'vocals.wav', 'sync_map.json']
 
 
-def song_file_tag(mp3, tag):
-    if mp3:
-        return mp3.tags.get(tag, [''])[0].strip()
+def song_file_tag(audiofile, tag):
+    if audiofile:
+        return audiofile.get(tag, [''])[0].strip()
     return None
 
 
-def song_name(song_file_path, taglib_file=None):
+def song_name(song_file_path, audiofile=None):
     """Get the name of a song at a given path.
 
     If the name can be retrieved from mp3 tags, return that. Otherwise
     clean up and return the file name.
     """
-    name_from_tags = song_file_tag(taglib_file, 'TITLE')
+    name_from_tags = song_file_tag(audiofile, 'title')
     if name_from_tags:
         return name_from_tags
     return song_file_path.stem.replace('_', ' ').capwords
 
 
-def song_artist(taglib_file=None):
-    return song_file_tag(taglib_file, 'ARTIST') or 'Unknown Artist'
+def song_artist(audiofile=None):
+    return song_file_tag(audiofile, 'artist') or 'Unknown Artist'
 
 
 def song_output_file(song_file_path, output_file_name):
@@ -52,12 +52,12 @@ def song_output_file(song_file_path, output_file_name):
 
 def song_data_for_file(song_file_path):
     try:
-        taglib_file = taglib.File(str(song_file_path))
+        audiofile = mutagen.File(str(song_file_path), easy=True)
     except OSError:
-        taglib_file = None
+        audiofile = None
     return {
-        'name': song_name(song_file_path, taglib_file),
-        'artist': song_artist(taglib_file),
+        'name': song_name(song_file_path, audiofile),
+        'artist': song_artist(audiofile),
         'prepared': all([
             song_output_file(song_file_path, output_file_name).is_file()
             for output_file_name in SONG_OUTPUT_FILES
@@ -207,6 +207,12 @@ def create_application(serve_static_files=False):
         )
         response.timeout = None
         return response
+
+    @application.route('/api/lyrics/<song_id>', methods=['PUT'])
+    def update_lyrics(song_id):
+        with open(os.path.join(output_dir(song_id), 'sync_map.json'), 'w') as sync_map_file:
+            json.dump(request.json['syncMap'], sync_map_file, indent=1)
+        return json.dumps(True)
 
     if serve_static_files:
         @application.route('/images/<file_name>')
