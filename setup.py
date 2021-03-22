@@ -9,5 +9,14 @@ setup(
             'karaokedoke = bespokeoke.server.server:main',
             'karaokeize = bespokeoke.karaokeize.karaokeizer:main',
         ],
-    }
+    },
+    install_requires=[
+        'aeneas',
+        'doit',
+        'lyricsgenius',
+        'moviepy',
+        'mutagen',
+        'pydub',
+        'spleeter',
+    ]
 )

@@ -1,0 +1,7 @@
+aeneas
+doit
+lyricsgenius
+moviepy
+mutagen
+pydub
+spleeter
