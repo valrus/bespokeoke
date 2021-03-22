@@ -51,8 +51,11 @@ def task_run_aligner(output_path):
 
         # The new boundary between two consecutive fragments will be set at value seconds from the current value.
         # A negative value will move the boundary back, a positive value will move the boundary forward.
-        config[gc.PPN_TASK_ADJUST_BOUNDARY_ALGORITHM] = AdjustBoundaryAlgorithm.OFFSET
-        config[gc.PPN_TASK_ADJUST_BOUNDARY_OFFSET_VALUE] = -0.5
+        # We don't want to do this here, as the user may want to set boundaries themselves
+        # and we don't want to make them set them 0.5 seconds (or whatever) early.
+        # Shift event boundaries on the frontend instead.
+        # config[gc.PPN_TASK_ADJUST_BOUNDARY_ALGORITHM] = AdjustBoundaryAlgorithm.OFFSET
+        # config[gc.PPN_TASK_ADJUST_BOUNDARY_OFFSET_VALUE] = -0.5
 
         config[gc.PPN_TASK_OS_FILE_FORMAT] = SyncMapFormat.JSON
         task = AeneasTask()
