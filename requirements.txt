@@ -10,6 +10,7 @@ audioread==2.1.9
 backcall==0.1.0
 bcrypt==3.1.7
 beautifulsoup4==4.6.0
+-e git+git@github.com:valrus/bespokeoke.git@31d8aa03186a00b554de5763e8970bd26b6adf77#egg=bespokeoke
 blinker==1.4
 cachetools==4.2.1
 certifi==2019.9.11
@@ -100,7 +101,7 @@ pytaglib==1.4.5
 python-dateutil==2.8.1
 python-magic==0.4.15
 pytz==2019.3
-PyYAML==5.1.2
+PyYAML==5.4.1
 Quart==0.10.0
 requests==2.22.0
 requests-oauthlib==1.3.0
