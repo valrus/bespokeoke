@@ -8,7 +8,7 @@ PROSODYLAB_LEXICON_URL = 'https://github.com/prosodylab/Prosodylab-Aligner/blob/
 
 @make_task
 def task_download_prosodylab_lexicon():
-    return {
+    yield {
         'actions': [f'wget {PROSODYLAB_LEXICON_URL} -O {{targets}}'],
         'targets': ['prosodylab_lexicon.txt'],
         'uptodate': [True],
@@ -18,7 +18,7 @@ def task_download_prosodylab_lexicon():
 
 @make_task
 def task_download_librispeech_lexicon():
-    return {
+    yield {
         'actions': [f'wget {LIBRISPEECH_LEXICON_URL} -O {{targets}}'],
         'targets': ['librispeech_lexicon.txt'],
         'uptodate': [True],
@@ -44,7 +44,7 @@ def task_combine_lexicons():
             for word, orthography in sorted(lexicon.items()):
                 print(word, orthography, file=combined_lexicon)
 
-    return {
+    yield {
         'actions': [(combine_lexicons,)],
         'file_dep': ['prosodylab_lexicon.txt', 'librispeech_lexicon.txt'],
         'targets': ['combined_lexicon.txt'],

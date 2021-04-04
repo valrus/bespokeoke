@@ -22,7 +22,7 @@ def task_find_silences(output_dir_path):
                 silences_file
             )
 
-    return {
+    yield {
         'actions': [(find_silences,)],
         'file_dep': [output_dir_path / 'vocals.wav'],
         'targets': [silences_path(output_dir_path)],

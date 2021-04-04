@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+from itertools import chain
 from pathlib import Path
 
 from doit.cmd_base import TaskLoader
@@ -38,13 +39,17 @@ def build_and_run_tasks(args, doit_args, doit_config=None):
     if args.input_path:
         output_dir_path = args.output_path or _default_out_dir(args.input_path)
         all_tasks.extend(
-            [
-                task_download_lyrics(args.input_path, output_dir_path),
-                task_separate_audio(args.input_path, output_dir_path),
-                task_run_aligner(output_dir_path),
-                task_find_silences(output_dir_path),
-                task_create_video(args.input_path, output_dir_path),
-            ]
+            list(
+                chain(
+                    task_download_lyrics(args.input_path, output_dir_path),
+                    task_separate_audio(args.input_path, output_dir_path),
+                    task_run_aligner(output_dir_path),
+                    task_find_silences(output_dir_path),
+                    task_compress_track(output_dir_path),
+                    task_create_video(args.input_path, output_dir_path),
+                    task_karaokedokeize()
+                )
+            )
         )
 
     return run_tasks(all_tasks, doit_args, doit_config=doit_config)

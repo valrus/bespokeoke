@@ -78,7 +78,7 @@ def task_run_aligner(output_path):
         }
         task.sync_map.write(SyncMapFormat.JSON, targets[0], parameters=sync_map_params)
 
-    return {
+    yield {
         'actions': [(run_aeneas,)],
         'file_dep': [
             output_path / 'vocals.wav',

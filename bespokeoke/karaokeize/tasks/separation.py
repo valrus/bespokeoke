@@ -2,7 +2,7 @@
 
 from spleeter.separator import Separator
 
-from .utils import make_task
+from .utils import make_task, separation_output_files
 
 
 @make_task
@@ -17,10 +17,10 @@ def task_separate_audio(input_path, output_dir_path):
             filename_format='{instrument}.{codec}'
         )
 
-    return {
+    yield {
         'actions': [(separate_audio,)],
         'file_dep': [input_path],
-        'targets': [output_dir_path / 'accompaniment.wav', output_dir_path / 'vocals.wav'],
+        'targets': list(separation_output_files(output_dir_path)),
         'uptodate': [True],
         'verbosity': 2,
     }

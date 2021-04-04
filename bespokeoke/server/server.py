@@ -150,7 +150,7 @@ def create_application(serve_static_files=False):
             build_and_run_tasks,
             (
                 Namespace(input_path=song_path, output_path=None),
-                ['task_run_aligner']
+                ['task_karaokedokeize']
             ),
             {
                 'doit_config': {

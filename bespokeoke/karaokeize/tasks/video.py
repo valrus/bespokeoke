@@ -74,7 +74,7 @@ def task_create_video(input_path, output_dir_path):
             remove_temp=True
         )
 
-    return {
+    yield {
         'actions': [(create_video,)],
         'file_dep': [
             output_dir_path / 'accompaniment.wav',

@@ -56,7 +56,7 @@ def task_download_lyrics(input_path, output_path):
         else:
             raise ValueError("No GENIUS_ACCESS_TOKEN, can't download lyrics")
 
-    return {
+    yield {
         'actions': [(download_lyrics,)],
         'file_dep': [input_path],
         'targets': [lyrics_path(output_path)],
