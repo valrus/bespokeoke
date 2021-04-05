@@ -11,3 +11,8 @@ htmlcov
 .doit.db
 .python-version
 pretrained_models/
+
+bespokeoke/server/songs
+bespokeoke/karaokeize/genius_token.py
+*.mp3
+*.out
