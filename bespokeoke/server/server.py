@@ -21,7 +21,7 @@ from .sse import ServerSentEvent
 
 SERVER_LOCATION = Path(__file__).resolve().parent
 ALLOWED_EXTENSIONS = {'mp3'}
-SONG_OUTPUT_FILES = ['accompaniment.wav', 'vocals.wav', 'sync_map.json']
+SONG_OUTPUT_FILES = ['accompaniment.mp3', 'vocals.mp3', 'sync_map.json']
 
 
 def song_file_tag(audiofile, tag):
@@ -225,11 +225,11 @@ def create_application(serve_static_files=False):
 
         @application.route('/accompaniment/<song_id>')
         def accompaniment_track(song_id):
-            return send_from_directory(output_dir(song_id), 'accompaniment.wav')
+            return send_from_directory(output_dir(song_id), 'accompaniment.mp3')
 
         @application.route('/vocals/<song_id>')
         def vocal_track(song_id):
-            return send_from_directory(output_dir(song_id), 'vocals.wav')
+            return send_from_directory(output_dir(song_id), 'vocals.mp3')
 
         @application.route('/lyrics/<song_id>')
         def lyrics(song_id):
