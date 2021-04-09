@@ -5,3 +5,4 @@ moviepy
 mutagen
 pydub
 spleeter
+youtube-dl
