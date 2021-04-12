@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+from contextlib import contextmanager
+import os
+
 from doit.task import dict_to_task
 
 
@@ -37,3 +40,13 @@ def video_path(input_path, output_path):
 
 def separation_output_files(output_path):
     return (output_path / f'{name}.wav' for name in SEPARATION_OUTPUT_NAMES)
+
+
+@contextmanager
+def working_dir(target_dir):
+    current_dir = os.getcwd()
+    try:
+        os.chdir(target_dir)
+        yield
+    finally:
+        os.chdir(current_dir)

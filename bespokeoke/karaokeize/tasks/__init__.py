@@ -11,4 +11,5 @@ from .lyrics import task_download_lyrics
 from .alignment import task_run_aligner
 from .silence import task_find_silences
 from .compress import task_compress_track
+from .youtube import task_download_youtube_audio
 from .karaokedokeize import task_karaokedokeize

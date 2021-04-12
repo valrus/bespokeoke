@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 import multiprocessing
 import os
 import shutil
@@ -132,31 +133,40 @@ def create_application(serve_static_files=False):
         if result == 0:
             event = {'event': 'success', 'task': 'processing', 'songId': song_id}
         elif result == 1:
-            event = {'event': 'error', 'task': 'processing', 'songId': song_id}
+            event = {'event': 'error 1', 'task': 'processing', 'songId': song_id}
         elif result == 2:
-            event = {'event': 'error', 'task': 'processing', 'songId': song_id}
+            event = {'event': 'error 2', 'task': 'processing', 'songId': song_id}
         elif result == 3:
-            event = {'event': 'error', 'task': 'processing', 'songId': song_id}
+            event = {'event': 'error 3', 'task': 'processing', 'songId': song_id}
 
         application.process_queue.put_nowait(event)
 
     def handle_process_error(song_id, exception):
+        logging.error(exception)
+        import ipdb; ipdb.set_trace()
         application.process_queue.put_nowait({'event': 'error', 'task': 'processing', 'songId': song_id})
 
-    def multiprocess_song(song_path):
+    def multiprocess_song(song_path, youtube_data=None):
+        youtube_data = youtube_data or {}
         song_id = song_path.stem
         # application.process_queue.put_nowait({'event': 'start', 'task': 'processing', 'songId': song_id})
         return application.process_pool.apply_async(
             build_and_run_tasks,
             (
-                Namespace(input_path=song_path, output_path=None),
+                Namespace(
+                    input_path=song_path,
+                    output_path=None,
+                    youtube_url=youtube_data['url'],
+                    title=youtube_data['song'],
+                    artist=youtube_data['artist']
+                ),
                 ['task_karaokedokeize']
             ),
             {
                 'doit_config': {
                     'reporter': ProcessQueueReporter(application.process_queue, song_id, {}),
                     'verbosity': 2,
-                }
+                },
             },
             callback=partial(handle_process_result, song_id),
             error_callback=partial(handle_process_error, song_id)
@@ -182,6 +192,25 @@ def create_application(serve_static_files=False):
                 song.save(str(song_path))
                 saved_songs.append(song_path)
                 process_things.append(multiprocess_song(song_path))
+        return songs_json_from_files(saved_songs)
+
+    def youtube_filename(youtube_data):
+        return '{}_{}.mp3'.format(youtube_data['artist'], youtube_data['song'])
+
+    def valid_youtube_url(url):
+        # TODO expand on this to be safer
+        return 'youtube.com' in url or 'youtu.be' in url
+
+    @application.route('/api/songs/youtube', methods=['POST'])
+    def scrape_youtube_song():
+        youtube_data = request.json
+        saved_songs = []
+        process_things = []
+        filename = secure_filename(youtube_filename(youtube_data))
+        if filename and valid_youtube_url(youtube_data['url']):
+            song_path = application.config['UPLOAD_FOLDER'] / filename
+            saved_songs.append(song_path)
+            process_things.append(multiprocess_song(song_path, youtube_data=youtube_data))
         return songs_json_from_files(saved_songs)
 
     @application.route('/api/progress')
@@ -250,6 +279,8 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('-s', '--song_dir', type=Path, default=Path(SERVER_LOCATION / 'songs'))
     args = parser.parse_args()
+
+    logging.basicConfig(filename='bespokeoke.log', level=logging.DEBUG)
 
     application = create_application(serve_static_files=True)
     application.config['UPLOAD_FOLDER'] = args.song_dir

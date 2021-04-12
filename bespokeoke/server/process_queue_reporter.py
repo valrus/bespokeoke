@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import sys
 
 from doit.reporter import ConsoleReporter, ZeroReporter
@@ -12,7 +13,7 @@ class ProcessQueueReporter(ZeroReporter):
 
     def write(self, data):
         sys.stdout.write(str(data))
-        open('doit.out', 'a').write(f'{str(data)}\n')
+        logging.info(str(data))
         self.outstream.put_nowait(data)
 
     # Available events:

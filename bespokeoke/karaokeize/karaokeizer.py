@@ -41,6 +41,13 @@ def build_and_run_tasks(args, doit_args, doit_config=None):
         all_tasks.extend(
             list(
                 chain(
+                    # what do if the youtube_url is blank
+                    task_download_youtube_audio(
+                        args.youtube_url,
+                        args.input_path,
+                        title=args.title,
+                        artist=args.artist
+                    ),
                     task_download_lyrics(args.input_path, output_dir_path),
                     task_separate_audio(args.input_path, output_dir_path),
                     task_run_aligner(output_dir_path),
@@ -61,6 +68,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_path', type=Path)
     parser.add_argument('-o', '--output_path', type=Path, default=None)
+    parser.add_argument('-y', '--youtube_url', type=str, default=None)
+    parser.add_argument('--title', type=str, default=None)
+    parser.add_argument('--artist', type=str, default=None)
+
     args, doit_args = parser.parse_known_args()
 
     return build_and_run_tasks(args, doit_args)
