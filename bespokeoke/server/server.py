@@ -209,12 +209,12 @@ def create_application(serve_static_files=False):
             if song.filename == '':
                 continue
             if song and allowed_file(song.filename):
-                filename = secure_filename(song.filename)
-                song_path = application.config['UPLOAD_FOLDER'] / filename
+                song_path = application.config['UPLOAD_FOLDER'] / secure_filename(song.filename)
                 song.save(str(song_path))
-                saved_songs.append(song_path)
-                process_things.append(multiprocess_song(song_path))
-        return songs_json_from_files(saved_songs)
+                song_data = SongData.from_file(song_path)
+                saved_songs.append(song_data)
+                process_things.append(multiprocess_song(song_data))
+        return {'songs': dict([song_data.id_json_pair() for song_data in saved_songs])}
 
     def valid_youtube_url(url):
         # TODO expand on this to be safer
