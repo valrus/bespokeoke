@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import json
 import logging
@@ -25,53 +24,79 @@ ALLOWED_EXTENSIONS = {'mp3'}
 SONG_OUTPUT_FILES = ['accompaniment.mp3', 'vocals.mp3', 'sync_map.json']
 
 
-def song_file_tag(audiofile, tag):
-    if audiofile:
-        return audiofile.get(tag, [''])[0].strip()
-    return None
+class SongData:
+    def __init__(self, name="Unknown", artist="Unknown", prepared=False, file_path=None):
+        self.name = name
+        self.artist = artist
+        self.prepared = prepared
+        if file_path.is_file():
+            self.file_path = file_path
+        elif file_path.is_dir():
+            self.file_path = file_path / secure_filename(f'{artist}_{name}.mp3')
 
+    @classmethod
+    def from_file(cls, file_path):
+        try:
+            audiofile = mutagen.File(str(file_path), easy=True)
+        except OSError:
+            audiofile = None
+        return cls(
+            name=cls._song_name(file_path, audiofile),
+            artist=cls._song_artist(audiofile),
+            prepared=all([
+                cls._song_output_file(file_path, output_file_name).is_file()
+                for output_file_name in SONG_OUTPUT_FILES
+            ]),
+            file_path=file_path
+        )
 
-def song_name(song_file_path, audiofile=None):
-    """Get the name of a song at a given path.
+    def to_json(self):
+        return {
+            'name': self.name,
+            'artist': self.artist,
+            'prepared': self.prepared
+        }
 
-    If the name can be retrieved from mp3 tags, return that. Otherwise
-    clean up and return the file name.
-    """
-    name_from_tags = song_file_tag(audiofile, 'title')
-    if name_from_tags:
-        return name_from_tags
-    return song_file_path.stem.replace('_', ' ').capwords
+    def song_id(self):
+        return self.file_path.stem
 
+    @classmethod
+    def _song_name(cls, song_file_path, audiofile=None):
+        """Get the name of a song at a given path.
 
-def song_artist(audiofile=None):
-    return song_file_tag(audiofile, 'artist') or 'Unknown Artist'
+        If the name can be retrieved from mp3 tags, return that. Otherwise
+        clean up and return the file name.
+        """
+        name_from_tags = cls._song_file_tag(audiofile, 'title')
+        if name_from_tags:
+            return name_from_tags
+        return song_file_path.stem.replace('_', ' ').capwords
 
+    @classmethod
+    def _song_file_tag(cls, audiofile, tag):
+        if audiofile:
+            return audiofile.get(tag, [''])[0].strip()
+        return None
 
-def song_output_file(song_file_path, output_file_name):
-    return song_file_path.parent / f'{song_file_path.stem}.out' / output_file_name
+    @classmethod
+    def _song_artist(cls, audiofile=None):
+        return cls._song_file_tag(audiofile, 'artist') or 'Unknown Artist'
 
+    @classmethod
+    def _song_output_file(cls, song_file_path, output_file_name):
+        return song_file_path.parent / f'{song_file_path.stem}.out' / output_file_name
 
-def song_data_for_file(song_file_path):
-    try:
-        audiofile = mutagen.File(str(song_file_path), easy=True)
-    except OSError:
-        audiofile = None
-    return {
-        'name': song_name(song_file_path, audiofile),
-        'artist': song_artist(audiofile),
-        'prepared': all([
-            song_output_file(song_file_path, output_file_name).is_file()
-            for output_file_name in SONG_OUTPUT_FILES
-        ])
-    }
+    def id_json_pair(self):
+        return (self.song_id(), self.to_json())
 
 
 def songs_json_from_files(song_file_paths):
     return {
-        'songs': {
-            f.stem: song_data_for_file(f)
-            for f in song_file_paths if f.is_file() and any(f.suffix.endswith(ext) for ext in ALLOWED_EXTENSIONS)
-        }
+        'songs': dict(
+            SongData.from_file(f).id_json_pair()
+            for f in song_file_paths
+            if f.is_file() and any(f.suffix.endswith(ext) for ext in ALLOWED_EXTENSIONS)
+        )
     }
 
 
@@ -101,7 +126,7 @@ def create_application(serve_static_files=False):
         return True
 
     def song_data_for_id(song_id):
-        return song_data_for_file(application.config['UPLOAD_FOLDER'] / f'{song_id}.mp3')
+        return SongData.from_file(application.config['UPLOAD_FOLDER'] / f'{song_id}.mp3').to_json()
 
     @application.route('/api/songs')
     def list_songs():
@@ -143,33 +168,30 @@ def create_application(serve_static_files=False):
 
     def handle_process_error(song_id, exception):
         logging.error(exception)
-        import ipdb; ipdb.set_trace()
         application.process_queue.put_nowait({'event': 'error', 'task': 'processing', 'songId': song_id})
 
-    def multiprocess_song(song_path, youtube_data=None):
-        youtube_data = youtube_data or {}
-        song_id = song_path.stem
+    def multiprocess_song(song_data, youtube_url=None):
         # application.process_queue.put_nowait({'event': 'start', 'task': 'processing', 'songId': song_id})
         return application.process_pool.apply_async(
             build_and_run_tasks,
             (
                 Namespace(
-                    input_path=song_path,
+                    input_path=song_data.file_path,
                     output_path=None,
-                    youtube_url=youtube_data['url'],
-                    title=youtube_data['song'],
-                    artist=youtube_data['artist']
+                    youtube_url=youtube_url,
+                    title=song_data.name,
+                    artist=song_data.artist
                 ),
                 ['task_karaokedokeize']
             ),
             {
                 'doit_config': {
-                    'reporter': ProcessQueueReporter(application.process_queue, song_id, {}),
+                    'reporter': ProcessQueueReporter(application.process_queue, song_data.song_id(), {}),
                     'verbosity': 2,
                 },
             },
-            callback=partial(handle_process_result, song_id),
-            error_callback=partial(handle_process_error, song_id)
+            callback=partial(handle_process_result, song_data.song_id()),
+            error_callback=partial(handle_process_error, song_data.song_id())
         )
 
     @application.route('/api/songs', methods=['POST'])
@@ -194,24 +216,24 @@ def create_application(serve_static_files=False):
                 process_things.append(multiprocess_song(song_path))
         return songs_json_from_files(saved_songs)
 
-    def youtube_filename(youtube_data):
-        return '{}_{}.mp3'.format(youtube_data['artist'], youtube_data['song'])
-
     def valid_youtube_url(url):
         # TODO expand on this to be safer
         return 'youtube.com' in url or 'youtu.be' in url
 
     @application.route('/api/songs/youtube', methods=['POST'])
     def scrape_youtube_song():
+        import ipdb; ipdb.set_trace()
         youtube_data = request.json
-        saved_songs = []
+        song_data = SongData(
+            name=youtube_data['song'],
+            artist=youtube_data['artist'],
+            prepared=False,
+            file_path=application.config['UPLOAD_FOLDER']
+        )
         process_things = []
-        filename = secure_filename(youtube_filename(youtube_data))
-        if filename and valid_youtube_url(youtube_data['url']):
-            song_path = application.config['UPLOAD_FOLDER'] / filename
-            saved_songs.append(song_path)
-            process_things.append(multiprocess_song(song_path, youtube_data=youtube_data))
-        return songs_json_from_files(saved_songs)
+        if song_data.file_path and valid_youtube_url(youtube_data['url']):
+            process_things.append(multiprocess_song(song_data, youtube_url=youtube_data['url']))
+        return {'songs': dict([song_data.id_json_pair()])}
 
     @application.route('/api/progress')
     def progress_events():
