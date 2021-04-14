@@ -18,6 +18,7 @@ setup(
         'mutagen',
         'pydub',
         'spleeter',
-        'youtube-dl'
+        'youtube-dl',
+        'gunicorn'
     ]
 )
