@@ -1,5 +1,6 @@
 numpy
 aeneas
+--no-binary=aeneas
 doit
 lyricsgenius
 moviepy
