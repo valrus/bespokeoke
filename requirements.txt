@@ -1,6 +1,5 @@
 numpy
-aeneas
---no-binary=aeneas
+https://files.pythonhosted.org/packages/e5/92/88d421001bb257588df4864ceca24d570e2e822db4f40f48737a78b648b2/aeneas-1.7.3.0.tar.gz
 doit
 lyricsgenius
 moviepy
