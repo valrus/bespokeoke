@@ -1,5 +1,6 @@
 numpy
 git+https://github.com/valrus/aeneas.git#egg=aeneas
+--no-binary=aeneas
 doit
 lyricsgenius
 moviepy
