@@ -22,6 +22,7 @@ from .sse import ServerSentEvent
 SERVER_LOCATION = Path(__file__).resolve().parent
 ALLOWED_EXTENSIONS = {'mp3'}
 SONG_OUTPUT_FILES = ['accompaniment.mp3', 'vocals.mp3', 'sync_map.json']
+DEFAULT_SONG_DIR = Path(SERVER_LOCATION / 'songs')
 
 
 class SongData:
@@ -104,7 +105,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def create_application(serve_static_files=False):
+def create_application(serve_static_files=True, song_dir=DEFAULT_SONG_DIR):
     application = Flask(
         __name__,
         static_folder=str(SERVER_LOCATION / 'karaokedoke' / 'static'),
@@ -113,6 +114,8 @@ def create_application(serve_static_files=False):
     application.clients = set()
     application.process_pool = multiprocessing.Pool()
     application.process_queue = multiprocessing.Manager().Queue()
+    application.config['UPLOAD_FOLDER'] = song_dir
+    application.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
     def output_dir(song_id):
         return application.config['UPLOAD_FOLDER'] / f'{song_id}.out'
@@ -299,14 +302,12 @@ def main():
     # https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr
     os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
     parser = ArgumentParser()
-    parser.add_argument('-s', '--song_dir', type=Path, default=Path(SERVER_LOCATION / 'songs'))
+    parser.add_argument('-s', '--song_dir', type=Path, default=DEFAULT_SONG_DIR)
     args = parser.parse_args()
 
     logging.basicConfig(filename='bespokeoke.log', level=logging.DEBUG)
 
-    application = create_application(serve_static_files=True)
-    application.config['UPLOAD_FOLDER'] = args.song_dir
-    application.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+    application = create_application(serve_static_files=True, song_dir=args.song_dir)
     application.run(
         host='0.0.0.0',
         debug=True
