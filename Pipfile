@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 numpy = "*"
-aeneas = { git = 'https://github.com/valrus/aeneas.git', ref = '1.7.3.0' }
+aeneas = { git = 'https://github.com/valrus/aeneas.git', ref = 'master' }
 doit = "*"
 lyricsgenius = "*"
 moviepy = "*"
