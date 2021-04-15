@@ -8,7 +8,6 @@ numpy = "*"
 aeneas = { git = 'https://github.com/valrus/aeneas.git', ref = 'master' }
 doit = "*"
 lyricsgenius = "*"
-moviepy = "*"
 mutagen = ">=1.45.1"
 pydub = ">=0.25.1"
 spleeter = ">=2.2.0"
@@ -17,6 +16,7 @@ gunicorn = "*"
 youtube_dl = "*"
 
 [dev-packages]
+moviepy = "*"
 pipenv = "*"
 ipython = "*"
 
