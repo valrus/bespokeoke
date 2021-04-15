@@ -4,5 +4,8 @@ lyricsgenius
 moviepy
 mutagen
 pydub
-spleeter
+spleeter>=2.2.0
 youtube-dl
+tensorflow>=2.3.0
+pydub>=0.25.1
+mutagen>=1.45.1
