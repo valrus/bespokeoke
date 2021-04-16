@@ -1,0 +1,6 @@
+runtime: python
+threadsafe: yes
+entrypoint: gunicorn -w 2 wsgi:application
+
+runtime_config:
+  python_version: 3
