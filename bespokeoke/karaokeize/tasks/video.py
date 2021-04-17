@@ -3,10 +3,6 @@
 import json
 import textwrap
 
-from moviepy.audio.io.AudioFileClip import AudioFileClip
-from moviepy.video.VideoClip import ColorClip, TextClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-
 from .utils import make_task, sync_map_path, video_path, silences_path
 
 
@@ -42,6 +38,9 @@ def _generate_lyric_clips(lyrics_map, silences):
 
 @make_task
 def task_create_video(input_path, output_dir_path):
+    from moviepy.audio.io.AudioFileClip import AudioFileClip
+    from moviepy.video.VideoClip import ColorClip, TextClip
+    from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 
     def create_video(dependencies, targets):
         backing_track_path = output_dir_path / 'accompaniment.wav'
