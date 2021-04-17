@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+flask = "*"
 numpy = "*"
 aeneas = { git = 'https://github.com/valrus/aeneas.git', ref = 'master' }
 doit = "*"
