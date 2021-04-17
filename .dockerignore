@@ -1,0 +1,16 @@
+*.mp3
+*.out
+*.log
+
+.DS_Store
+.doit.db
+pretrained_models
+
+ansible
+nginx
+
+bespokeoke/server/songs/*
+bespokeoke/server/karaokedoke/static/js/elm
+bespokeoke/server/karaokedoke/static/js/elm-stuff
+bespokeoke/server/karaokedoke/static/js/audio
+bespokeoke/server/karaokedoke/static/js/wavesurfer.js
