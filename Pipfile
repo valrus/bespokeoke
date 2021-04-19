@@ -15,6 +15,7 @@ spleeter = ">=2.2.0"
 tensorflow_cpu = ">=2.3.0"
 gunicorn = "*"
 youtube_dl = "*"
+google_cloud_storage = "*"
 
 [dev-packages]
 moviepy = "*"

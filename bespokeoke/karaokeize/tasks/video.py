@@ -38,48 +38,55 @@ def _generate_lyric_clips(lyrics_map, silences):
 
 @make_task
 def task_create_video(input_path, output_dir_path):
-    from moviepy.audio.io.AudioFileClip import AudioFileClip
-    from moviepy.video.VideoClip import ColorClip, TextClip
-    from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+    try:
+        from moviepy.audio.io.AudioFileClip import AudioFileClip
+        from moviepy.video.VideoClip import ColorClip, TextClip
+        from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 
-    def create_video(dependencies, targets):
-        backing_track_path = output_dir_path / 'accompaniment.wav'
-        with open(sync_map_path(output_dir_path), encoding='utf-8') as sync_json_file, \
-             open(silences_path(output_dir_path), encoding='utf-8') as silence_json_file:
-            lyric_clips = list(
-                _generate_lyric_clips(
-                    json.load(sync_json_file),
-                    json.load(silence_json_file)
+        def create_video(dependencies, targets):
+            backing_track_path = output_dir_path / 'accompaniment.wav'
+            with open(sync_map_path(output_dir_path), encoding='utf-8') as sync_json_file, \
+                open(silences_path(output_dir_path), encoding='utf-8') as silence_json_file:
+                lyric_clips = list(
+                    _generate_lyric_clips(
+                        json.load(sync_json_file),
+                        json.load(silence_json_file)
+                    )
                 )
+            backing_track_clip = AudioFileClip(str(backing_track_path))
+            background_clip = ColorClip(
+                size=(1024, 768), color=[0, 0, 0],
+                duration=backing_track_clip.duration
             )
-        backing_track_clip = AudioFileClip(str(backing_track_path))
-        background_clip = ColorClip(
-            size=(1024, 768), color=[0, 0, 0],
-            duration=backing_track_clip.duration
-        )
-        karaoke = (
-            CompositeVideoClip([background_clip] + lyric_clips).
-            set_duration(backing_track_clip.duration).
-            set_audio(backing_track_clip)
-        )
-        karaoke.write_videofile(
-            str(targets[0]),
-            fps=10,
-            # Workaround for missing audio
-            # https://github.com/Zulko/moviepy/issues/820
-            codec='libx264',
-            audio_codec='aac',
-            temp_audiofile='temp-audio.m4a',
-            remove_temp=True
-        )
+            karaoke = (
+                CompositeVideoClip([background_clip] + lyric_clips).
+                set_duration(backing_track_clip.duration).
+                set_audio(backing_track_clip)
+            )
+            karaoke.write_videofile(
+                str(targets[0]),
+                fps=10,
+                # Workaround for missing audio
+                # https://github.com/Zulko/moviepy/issues/820
+                codec='libx264',
+                audio_codec='aac',
+                temp_audiofile='temp-audio.m4a',
+                remove_temp=True
+            )
 
-    yield {
-        'actions': [(create_video,)],
-        'file_dep': [
-            output_dir_path / 'accompaniment.wav',
-            sync_map_path(output_dir_path),
-            silences_path(output_dir_path),
-        ],
-        'targets': [video_path(input_path, output_dir_path)],
-        'verbosity': 2,
-    }
+        yield {
+            'actions': [(create_video,)],
+            'file_dep': [
+                output_dir_path / 'accompaniment.wav',
+                sync_map_path(output_dir_path),
+                silences_path(output_dir_path),
+            ],
+            'targets': [video_path(input_path, output_dir_path)],
+            'verbosity': 2,
+        }
+    except ImportError:
+        yield {
+            'actions': [],
+            'targets': [video_path(input_path, output_dir_path)],
+            'verbosity': 2,
+        }

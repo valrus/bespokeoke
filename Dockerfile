@@ -29,4 +29,11 @@ WORKDIR ./app
 
 RUN pipenv install --skip-lock
 
-CMD exec pipenv run gunicorn --bind :$PORT wsgi:application --workers 1 --threads 1 --timeout 60
+CMD exec pipenv run gunicorn \
+  --log-config logging.conf \
+  --config gunicorn.docker.conf.py \
+  --bind :$PORT \
+  wsgi:application \
+  --workers 2 \
+  --threads 4 \
+  --timeout 120
