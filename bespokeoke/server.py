@@ -14,7 +14,7 @@ import mutagen
 from flask import Flask, Response, send_from_directory, request, jsonify
 from werkzeug.utils import secure_filename
 
-from bespokeoke.karaokeize.karaokeizer import build_and_run_tasks
+from karaokeizer.karaokeizer import build_and_run_tasks
 from .process_queue_reporter import ProcessQueueReporter
 from .sse import ServerSentEvent
 

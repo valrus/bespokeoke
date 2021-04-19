@@ -5,20 +5,11 @@ name = "pypi"
 
 [packages]
 flask = "*"
-numpy = "*"
-aeneas = { git = 'https://github.com/valrus/aeneas.git', ref = 'master' }
-doit = "*"
-lyricsgenius = "*"
-mutagen = ">=1.45.1"
-pydub = ">=0.25.1"
-spleeter = ">=2.2.0"
-tensorflow_cpu = ">=2.3.0"
 gunicorn = "*"
-youtube_dl = "*"
+karaokeizer = { git = 'https://github.com/valrus/karaokeizer.git', ref = 'main' }
 google_cloud_storage = "*"
 
 [dev-packages]
-moviepy = "*"
 pipenv = "*"
 ipython = "*"
 

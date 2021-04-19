@@ -6,19 +6,10 @@ setup(
     packages=find_namespace_packages(),
     entry_points={
         'console_scripts': [
-            'karaokedoke = bespokeoke.server.server:main',
-            'karaokeize = bespokeoke.karaokeize.karaokeizer:main',
+            'karaokedoke = bespokeoke.server:main',
         ],
     },
     install_requires=[
-        'aeneas',
-        'doit',
-        'lyricsgenius',
-        'moviepy',
-        'mutagen',
-        'pydub',
-        'spleeter',
-        'youtube-dl',
         'gunicorn'
     ]
 )
