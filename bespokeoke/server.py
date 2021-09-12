@@ -9,86 +9,18 @@ from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
 
-import mutagen
-
 from flask import Flask, Response, send_from_directory, request, jsonify
 from werkzeug.utils import secure_filename
 
 from karaokeizer.karaokeizer import build_and_run_tasks
 from .process_queue_reporter import ProcessQueueReporter
+from .song_data import SongData
 from .sse import ServerSentEvent
 
 
 SERVER_LOCATION = Path(__file__).resolve().parent
 ALLOWED_EXTENSIONS = {'mp3'}
-SONG_OUTPUT_FILES = ['accompaniment.mp3', 'vocals.mp3', 'sync_map.json']
 DEFAULT_SONG_DIR = Path(SERVER_LOCATION / 'songs')
-
-
-class SongData:
-    def __init__(self, name="Unknown", artist="Unknown", prepared=False, file_path=None):
-        self.name = name
-        self.artist = artist
-        self.prepared = prepared
-        if file_path.is_file():
-            self.file_path = file_path
-        elif file_path.is_dir():
-            self.file_path = file_path / secure_filename(f'{artist}_{name}.mp3')
-
-    @classmethod
-    def from_file(cls, file_path):
-        try:
-            audiofile = mutagen.File(str(file_path), easy=True)
-        except OSError:
-            audiofile = None
-        return cls(
-            name=cls._song_name(file_path, audiofile),
-            artist=cls._song_artist(audiofile),
-            prepared=all([
-                cls._song_output_file(file_path, output_file_name).is_file()
-                for output_file_name in SONG_OUTPUT_FILES
-            ]),
-            file_path=file_path
-        )
-
-    def to_json(self):
-        return {
-            'name': self.name,
-            'artist': self.artist,
-            'prepared': self.prepared
-        }
-
-    def song_id(self):
-        return self.file_path.stem
-
-    @classmethod
-    def _song_name(cls, song_file_path, audiofile=None):
-        """Get the name of a song at a given path.
-
-        If the name can be retrieved from mp3 tags, return that. Otherwise
-        clean up and return the file name.
-        """
-        name_from_tags = cls._song_file_tag(audiofile, 'title')
-        if name_from_tags:
-            return name_from_tags
-        return song_file_path.stem.replace('_', ' ').capwords
-
-    @classmethod
-    def _song_file_tag(cls, audiofile, tag):
-        if audiofile:
-            return audiofile.get(tag, [''])[0].strip()
-        return None
-
-    @classmethod
-    def _song_artist(cls, audiofile=None):
-        return cls._song_file_tag(audiofile, 'artist') or 'Unknown Artist'
-
-    @classmethod
-    def _song_output_file(cls, song_file_path, output_file_name):
-        return song_file_path.parent / f'{song_file_path.stem}.out' / output_file_name
-
-    def id_json_pair(self):
-        return (self.song_id(), self.to_json())
 
 
 def songs_json_from_files(song_file_paths):
