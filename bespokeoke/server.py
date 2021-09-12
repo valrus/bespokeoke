@@ -116,6 +116,7 @@ def create_application(serve_static_files=True, song_dir=DEFAULT_SONG_DIR):
     application.process_queue = multiprocessing.Manager().Queue()
     application.config['UPLOAD_FOLDER'] = song_dir
     application.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+    song_dir.mkdir(parents=True, exist_ok=True)
 
     def output_dir(song_id):
         return application.config['UPLOAD_FOLDER'] / f'{song_id}.out'
