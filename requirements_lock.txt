@@ -61,7 +61,7 @@ Keras-Preprocessing==1.1.2
 lazy-object-proxy==1.4.3
 librosa==0.8.0
 llvmlite==0.35.0
-lxml==4.6.3
+lxml==4.9.1
 lyricsgenius==3.0.0
 MacFSEvents==0.8.1
 Markdown==3.1.1
